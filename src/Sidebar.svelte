@@ -2,7 +2,9 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 
-	interface Props {
+	interface Props { 
+		sources: Array<{ name: string; count: number }>;
+		selectedSource: string;
 		keys: string[];
 		visibleKeys: Record<string, boolean>;
 		searchTerm: string;
@@ -16,6 +18,7 @@
 			selectNone: () => void;
 			addFilter: (field: string) => void;
 			removeFilter: (field: string) => void;
+			selectSource: (source: string) => void;
 		};
 		onToggle: () => void;
 		darkMode: boolean;
@@ -23,6 +26,8 @@
 	}
 
 	let {
+		sources,
+		selectedSource = $bindable(),
 		keys,
 		visibleKeys = $bindable(),
 		searchTerm = $bindable(),
@@ -63,9 +68,8 @@
 </script>
 
 <aside
-	class="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground overflow-hidden"
+	class="flex w-64 shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
 >
-	<!-- Header -->
 	<div class="flex h-14 shrink-0 items-center justify-between border-b border-sidebar-border px-4">
 		<div class="flex items-center gap-2.5">
 			<div
@@ -99,7 +103,7 @@
 		<div class="flex items-center gap-0.5">
 			<button
 				onclick={onToggleDarkMode}
-				class="flex h-7 w-7 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+				class="flex h-7 w-7 items-center justify-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 				title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
 			>
 				{#if darkMode}
@@ -135,7 +139,7 @@
 			</button>
 			<button
 				onclick={onToggle}
-				class="flex h-7 w-7 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+				class="flex h-7 w-7 items-center justify-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 				title="Hide sidebar"
 			>
 				<svg
@@ -154,14 +158,12 @@
 		</div>
 	</div>
 
-	<!-- Scrollable content -->
 	<div class="flex flex-1 flex-col gap-0 overflow-y-auto">
-		<!-- Search -->
-		<div class="px-3 py-3 border-b border-sidebar-border">
+		<div class="border-b border-sidebar-border px-3 py-3">
 			<div class="relative">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
-					class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-sidebar-foreground/40 pointer-events-none"
+					class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-sidebar-foreground/40"
 					viewBox="0 0 24 24"
 					fill="none"
 					stroke="currentColor"
@@ -177,28 +179,58 @@
 					placeholder="Search logs..."
 					bind:value={searchTerm}
 					oninput={callbacks.applyFilters}
-					class="w-full pl-8 h-8 text-sm bg-sidebar-accent/50 border-sidebar-border focus-visible:ring-sidebar-ring"
+					class="h-8 w-full border-sidebar-border bg-sidebar-accent/50 pl-8 text-sm focus-visible:ring-sidebar-ring"
 				/>
 			</div>
 		</div>
 
+		{#if sources.length > 0}
+			<div class="border-b border-sidebar-border px-3 py-3">
+				<div class="mb-2">
+					<span class="text-xs font-medium uppercase tracking-wider text-sidebar-foreground/50"
+						>Services</span
+					>
+				</div>
+				<div class="flex flex-col gap-1">
+					<button
+						onclick={() => callbacks.selectSource('all')}
+						class={`flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors ${selectedSource === 'all' ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'hover:bg-sidebar-accent'}`}
+					>
+						<span>All services</span>
+						<span class="text-xs opacity-70">
+							{sources.reduce((sum, source) => sum + source.count, 0)}
+						</span>
+					</button>
+					{#each sources as source}
+						<button
+							onclick={() => callbacks.selectSource(source.name)}
+							title={source.name}
+							class={`flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors ${selectedSource === source.name ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'hover:bg-sidebar-accent'}`}
+						>
+							<span class="truncate text-left">{source.name}</span>
+							<span class="ml-2 text-xs opacity-70">{source.count}</span>
+						</button>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
 		{#if keys.length > 0}
-			<!-- Fields section -->
-			<div class="px-3 py-3 border-b border-sidebar-border">
-				<div class="flex items-center justify-between mb-2">
-					<span class="text-xs font-medium text-sidebar-foreground/50 uppercase tracking-wider"
+			<div class="border-b border-sidebar-border px-3 py-3">
+				<div class="mb-2 flex items-center justify-between">
+					<span class="text-xs font-medium uppercase tracking-wider text-sidebar-foreground/50"
 						>Columns</span
 					>
 					<div class="flex items-center gap-1">
 						<button
 							onclick={callbacks.selectAll}
-							class="text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors px-1 rounded hover:bg-sidebar-accent"
+							class="rounded px-1 text-xs text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
 							>All</button
 						>
 						<span class="text-xs text-sidebar-foreground/30">/</span>
 						<button
 							onclick={callbacks.selectNone}
-							class="text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors px-1 rounded hover:bg-sidebar-accent"
+							class="rounded px-1 text-xs text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
 							>None</button
 						>
 					</div>
@@ -206,16 +238,16 @@
 				<div class="flex flex-col gap-0.5">
 					{#each keys as key}
 						<div
-							class="group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 hover:bg-sidebar-accent transition-colors"
+							class="group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-sidebar-accent"
 						>
-							<label class="flex flex-1 cursor-pointer items-center gap-2 min-w-0">
+							<label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
 								<Checkbox bind:checked={visibleKeys[key]} />
-								<span class="text-sm truncate">{key}</span>
+								<span class="truncate text-sm">{key}</span>
 							</label>
 							{#if !(key in fieldFilters)}
 								<button
 									onclick={() => callbacks.addFilter(key)}
-									class="invisible shrink-0 text-sidebar-foreground/40 hover:text-sidebar-foreground group-hover:visible transition-colors"
+									class="invisible shrink-0 text-sidebar-foreground/40 transition-colors group-hover:visible hover:text-sidebar-foreground"
 									title="Filter by {key}"
 								>
 									<svg
@@ -254,10 +286,9 @@
 		{/if}
 
 		{#if Object.keys(fieldFilters).length > 0}
-			<!-- Filters section -->
 			<div class="px-3 py-3">
 				<div class="mb-2">
-					<span class="text-xs font-medium text-sidebar-foreground/50 uppercase tracking-wider"
+					<span class="text-xs font-medium uppercase tracking-wider text-sidebar-foreground/50"
 						>Active Filters</span
 					>
 				</div>
@@ -265,25 +296,25 @@
 					{#each Object.entries(fieldFilters) as [field, selectedValues]}
 						{@const availableValues = topValuesCache[field] ?? []}
 						<div
-							class="rounded-lg border border-sidebar-border bg-sidebar-accent/30 overflow-hidden"
+							class="overflow-hidden rounded-lg border border-sidebar-border bg-sidebar-accent/30"
 						>
-							<div class="flex items-center justify-between px-2.5 py-1.5 bg-sidebar-accent/50">
+							<div class="flex items-center justify-between bg-sidebar-accent/50 px-2.5 py-1.5">
 								<span class="text-xs font-medium">{field}</span>
 								<div class="flex items-center gap-1">
 									<button
 										onclick={() => selectAllValues(field)}
-										class="text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"
+										class="text-xs text-sidebar-foreground/50 transition-colors hover:text-sidebar-foreground"
 										>All</button
 									>
 									<span class="text-xs text-sidebar-foreground/30">/</span>
 									<button
 										onclick={() => selectNoneValues(field)}
-										class="text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"
+										class="text-xs text-sidebar-foreground/50 transition-colors hover:text-sidebar-foreground"
 										>None</button
 									>
 									<button
 										onclick={() => callbacks.removeFilter(field)}
-										class="ml-0.5 text-sidebar-foreground/40 hover:text-destructive transition-colors"
+										class="ml-0.5 text-sidebar-foreground/40 transition-colors hover:text-destructive"
 										title="Remove filter"
 									>
 										<svg
@@ -302,22 +333,22 @@
 									</button>
 								</div>
 							</div>
-							<div class="px-2 py-1.5 flex flex-col gap-0.5">
+							<div class="flex flex-col gap-0.5 px-2 py-1.5">
 								{#each availableValues as value}
 									<label
-										class="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-sidebar-accent transition-colors"
+										class="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 transition-colors hover:bg-sidebar-accent"
 									>
 										<Checkbox
 											checked={selectedValues.includes(value)}
 											onCheckedChange={() => toggleFilterValue(field, value)}
 										/>
-										<span class="text-xs truncate text-sidebar-foreground/80" title={value}
+										<span class="truncate text-xs text-sidebar-foreground/80" title={value}
 											>{value}</span
 										>
 									</label>
 								{/each}
 								{#if availableValues.length === 0}
-									<p class="text-xs text-sidebar-foreground/40 italic px-1 py-0.5">No values yet</p>
+									<p class="px-1 py-0.5 text-xs italic text-sidebar-foreground/40">No values yet</p>
 								{/if}
 							</div>
 						</div>
@@ -327,7 +358,6 @@
 		{/if}
 	</div>
 
-	<!-- Footer -->
 	<div class="shrink-0 border-t border-sidebar-border px-4 py-3">
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-1.5">
@@ -344,7 +374,7 @@
 						href="https://github.com/suda/leno"
 						target="_blank"
 						rel="noopener noreferrer"
-						class="hover:text-sidebar-foreground transition-colors">GitHub</a
+						class="transition-colors hover:text-sidebar-foreground">GitHub</a
 					>
 				</div>
 			{/if}

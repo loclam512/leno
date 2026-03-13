@@ -119,3 +119,76 @@
 		@apply bg-background text-foreground;
 	}
 }
+
+.log-cell {
+	margin: 0;
+	font: inherit;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.log-message-accordion {
+	min-width: 0;
+	border: 1px solid color-mix(in oklab, var(--color-border) 88%, transparent);
+	border-radius: calc(var(--radius) - 2px);
+	background: color-mix(in oklab, var(--color-muted) 52%, transparent);
+	padding: 0.5rem 0.65rem;
+	transition:
+		background-color 150ms ease,
+		border-color 150ms ease;
+}
+
+.log-message-accordion.is-open {
+	background: color-mix(in oklab, var(--color-background) 92%, var(--color-muted) 8%);
+	border-color: color-mix(in oklab, var(--color-ring) 32%, var(--color-border));
+}
+
+.log-message-summary {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.65rem;
+	min-width: 0;
+}
+
+.log-message-chevron {
+	flex: none;
+	margin-top: 0.05rem;
+	color: var(--color-muted-foreground);
+}
+
+.log-message-summary-copy {
+	display: flex;
+	align-items: baseline;
+	gap: 0.75rem;
+	min-width: 0;
+	width: 100%;
+}
+
+.log-message-preview {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--color-foreground);
+	font-weight: 500;
+}
+
+.log-message-meta {
+	flex: none;
+	font-size: 11px;
+	font-weight: 500;
+	color: var(--color-muted-foreground);
+	white-space: nowrap;
+}
+
+.log-message-panel {
+	margin-top: 0.65rem;
+	border-top: 1px solid color-mix(in oklab, var(--color-border) 88%, transparent);
+	padding-top: 0.65rem;
+}
+
+.log-message-content {
+	max-height: 18rem;
+	overflow: auto;
+}

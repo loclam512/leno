@@ -10,7 +10,14 @@
 	<br>
 </div>
 
-Leño is a [JSON lines](https://jsonlines.org/) log viewer with a web UI. Think of it as local Kibana/Sumo Logic for development. Works great with [Pino](https://getpino.io/) logging library, any other app that logs into JSON, nginx/nginx-ingress access logs, or [logfmt](https://brandur.org/logfmt) structured logs.
+Leño is a log viewer with a web UI. It can ingest JSON lines, plain text logs, `logfmt`, and nginx access logs, then stream them to the browser in real time.
+
+It now supports:
+
+- live streaming over Server-Sent Events
+- buffered history pages for browser reloads
+- infinite scroll for older buffered logs
+- service/source filtering when logs include a `source` field or a `[service-name]` prefix
 
 ![](./assets/screenshot.png)
 
@@ -18,111 +25,211 @@ Leño is a [JSON lines](https://jsonlines.org/) log viewer with a web UI. Think 
 
 Download the latest binary for your platform from the [releases page](https://github.com/suda/leno/releases) and place it somewhere on your `$PATH`.
 
-Or build from source (requires Go 1.21+ and Node.js for the Svelte build step):
+Or build from source:
 
 ```sh
 git clone https://github.com/suda/leno
 cd leno
-npm install
+bun install
 make build
 ```
 
-This produces a single `./leno` binary with the web UI embedded — no runtime dependencies.
+This produces a single `./leno` binary with the web UI embedded.
 
-## Usage
+## Login
 
-Pipe your app's output to `leno`:
+The web UI uses the built-in monitor account:
 
-```sh
-$ ./myapp | leno
-Leno running on http://localhost:3000
+```txt
+username: monitor
+password: gorilla@esim#
 ```
 
-Now open [http://localhost:3000](http://localhost:3000) to see logs stream in real time.
+## Basic usage
 
-### Custom port
+Pipe any process into `leno`:
 
 ```sh
-$ LENO_PORT=8080 ./myapp | leno
-Leno running on http://localhost:8080
+./myapp | leno
+node server.js | leno
+java -jar app.jar | leno
 ```
 
-### Example with Pino
+By default Leño runs on `http://localhost:3000`.
+
+Use a custom port with `LENO_PORT`:
 
 ```sh
-$ node server.js | leno
+LENO_PORT=8080 ./myapp | leno
 ```
 
-### Nginx / nginx-ingress access logs
+## Supported input formats
 
-Use `--log-format=nginx` to parse nginx access logs (both the standard [combined log format](https://nginx.org/en/docs/http/ngx_http_log_module.html) and the extended [nginx-ingress format](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/log-format/)). Each line is converted to a JSON object before display.
+### Plain text
 
-```sh
-# Local nginx
-$ tail -f /var/log/nginx/access.log | leno --log-format=nginx
+Plain text lines are wrapped into JSON like this:
 
-# Kubernetes nginx-ingress
-$ kubectl logs -n nginx -l app.kubernetes.io/name=ingress-nginx \
-    --all-containers=true -f | leno --log-format=nginx
+```json
+{"message":"..."}
 ```
 
-The following fields are extracted:
+### JSON logs
 
-| Field | Type | Description |
-|---|---|---|
-| `remote_addr` | string | Client IP address |
-| `remote_user` | string | Authenticated user (`-` if none) |
-| `time` | string | Request time in RFC 3339 UTC |
-| `method` | string | HTTP method |
-| `path` | string | Request path |
-| `http_version` | string | HTTP version |
-| `status` | number | HTTP response status code |
-| `body_bytes` | number | Bytes sent to client |
-| `http_referer` | string | `Referer` header |
-| `http_user_agent` | string | `User-Agent` header |
-| `request_length` | number | *(nginx-ingress)* Request size in bytes |
-| `request_time` | number | *(nginx-ingress)* Request processing time in seconds |
-| `upstream_name` | string | *(nginx-ingress)* Upstream service name |
-| `upstream_addr` | string | *(nginx-ingress)* Upstream pod address |
-| `upstream_response_time` | string | *(nginx-ingress)* Upstream response time(s) |
-| `upstream_status` | number | *(nginx-ingress)* Upstream response status code |
-| `request_id` | string | *(nginx-ingress)* Unique request ID |
+If the input is already JSON, Leño preserves the fields and streams them directly.
 
-Lines that don't match either format are passed through as-is, so mixed log streams (e.g. nginx error lines alongside access lines) are handled gracefully.
+### logfmt
 
-### logfmt logs
-
-Use `--log-format=logfmt` to parse [logfmt](https://brandur.org/logfmt) logs — a simple `key=value` format used by many Go and Ruby libraries (e.g. [logrus](https://github.com/sirupsen/logrus), [log/slog](https://pkg.go.dev/log/slog) with a text handler, [Heroku router logs](https://devcenter.heroku.com/articles/http-routing#heroku-router-log-format)).
+Use `--log-format=logfmt` for `key=value` logs:
 
 ```sh
-$ ./myapp | leno --log-format=logfmt
+./myapp | leno --log-format=logfmt
 ```
 
-Each line is parsed into a JSON object. String values that look like integers, floats, or booleans (`true`/`false`) are coerced to the appropriate type. Lines that contain no valid `key=value` pairs are passed through as-is.
+### nginx
 
-### Generate fake logs for testing
+Use `--log-format=nginx` for nginx or ingress-nginx access logs:
 
 ```sh
-$ ./scripts/generate-fake-logs.sh | leno
+tail -f /var/log/nginx/access.log | leno --log-format=nginx
 ```
 
-## Building from source
+## Browser behavior
 
-Requirements: Go 1.21+, Node.js (build only)
+When the UI opens, Leño:
+
+1. loads the latest buffered history page from `/history`
+2. opens a live `/events` stream for new logs
+3. loads older buffered pages as you scroll down
+
+The default history page size is `1000`.
+
+Configure history behavior with:
 
 ```sh
-# Install JS build dependencies
-npm install
+LENO_HISTORY_PAGE_SIZE=1000
+LENO_HISTORY_BUFFER_SIZE=20000
+```
 
-# Build Svelte app and compile Go binary
-make build        # produces ./leno
+- `LENO_HISTORY_PAGE_SIZE`: how many logs to load per page in the browser
+- `LENO_HISTORY_BUFFER_SIZE`: how many recent logs the server keeps in memory for history replay
 
-# Development (Svelte hot-reload)
-make dev          # runs rollup in watch mode; run ./leno separately
+Important: this is an in-memory history buffer, not long-term storage. For persistent logs, keep your application logs on disk or in journald and feed them into Leño.
 
-# Clean build artifacts
+## Service grouping
+
+The sidebar "Services" section is driven by the `source` field.
+
+Leño can derive `source` in two ways:
+
+1. Your logs already contain JSON with a `source` field:
+
+```json
+{"source":"gorilla-core.service","level":"INFO","message":"started"}
+```
+
+2. Your log lines are prefixed like this:
+
+```txt
+[gorilla-core.service] 2026-03-12 09:30:00,123 INFO started
+```
+
+If your logs do not include either of those, Leño groups them under:
+
+```txt
+unknown
+```
+
+## Shared log file pattern
+
+A common EC2/systemd setup is:
+
+- multiple services append to one shared file such as `/opt/apps/logs/all-services.log`
+- each service prefixes every line with its service name
+- Leño tails that file
+
+Example service output line:
+
+```txt
+[gorilla-core.service] 2026-03-12 09:30:00,123 INFO started
+```
+
+Example service unit pattern:
+
+```ini
+[Service]
+ExecStart=/bin/bash -lc 'exec /usr/bin/java -jar /opt/apps/gorilla-core/current/app.jar 2>&1 | sed -u "s/^/[gorilla-core.service] /" >> /opt/apps/logs/all-services.log'
+```
+
+Then run Leño against the shared file:
+
+```sh
+tail -n 5000 -F /opt/apps/logs/all-services.log | LENO_PORT=8080 leno
+```
+
+With that setup:
+
+- the browser loads the latest buffered logs first
+- new logs continue streaming live
+- the sidebar can filter by service name
+
+## Receiver mode
+
+Leño also supports forwarding stdin into another running Leño instance:
+
+```sh
+java -jar app.jar | leno --ingest-url http://127.0.0.1:3000/ingest --source-name gorilla-core.service
+```
+
+That mode is useful when you want a dedicated receiver process, but for persistent EC2 setups the shared-file or journald model is usually simpler.
+
+## Journald / systemd example
+
+If your service already writes to journald, you can feed that into Leño:
+
+```sh
+journalctl -n 2000 -f -u gorilla-core.service -o cat | leno
+```
+
+## EC2 example
+
+A practical EC2 deployment usually looks like this:
+
+1. Application services write to `/opt/apps/logs/all-services.log`
+2. Each service prefixes its own lines with `[service-name]`
+3. A systemd unit runs:
+
+```sh
+tail -n 5000 -F /opt/apps/logs/all-services.log | /opt/leno/bin/leno
+```
+
+4. Nginx proxies your public domain to Leño
+5. The browser loads `/history` once, then keeps `/events` open for new logs
+
+## Development
+
+Requirements:
+
+- Go 1.21+
+- Bun
+
+Commands:
+
+```sh
+bun install
+make build              # build embedded frontend + Go binary
+make build-linux-amd64  # cross-compile Linux amd64 binary
+make dev                # frontend dev server
+make lint               # frontend lint + go vet
+make format             # frontend format
+make format-check       # frontend format check
 make clean
 ```
+
+## Notes
+
+- `source` is required for per-service sidebar grouping.
+- Plain text logs work, but structured JSON logs give a better filtering experience.
+- History is buffered in memory; keep a durable log source if you need persistence beyond the running Leño process.
 
 ## Credits
 
